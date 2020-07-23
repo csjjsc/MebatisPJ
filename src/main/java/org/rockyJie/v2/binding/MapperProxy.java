@@ -30,6 +30,7 @@ public class MapperProxy implements InvocationHandler {
      */
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        System.out.println("MapperProxy invoke");
         String mapperInterfaceName = method.getDeclaringClass().getName();
         String methodName = method.getName();
         String statementId = mapperInterfaceName + "." + methodName;

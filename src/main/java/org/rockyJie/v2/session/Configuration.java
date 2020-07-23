@@ -3,6 +3,8 @@ package org.rockyJie.v2.session;
 import org.rockyJie.v2.binding.MapperRegistry;
 import org.rockyJie.v2.executors.Executor;
 import org.rockyJie.v2.executors.SimpleExecutor;
+import org.rockyJie.v2.plugin.Interceptor;
+import org.rockyJie.v2.plugin.InterceptorChain;
 
 import java.io.File;
 import java.util.*;
@@ -17,10 +19,11 @@ public class Configuration {
     private static ResourceBundle sqlMapper;
     private static final MapperRegistry MAPPER_REGISTRY = new MapperRegistry();
     private static final Map<String, String> mappedStatement = new HashMap<>();
+    private InterceptorChain interceptorChain = new InterceptorChain();  //插件链
     private List<Class<?>> mapperList = new ArrayList<>();
     private List<String> classFilePath = new ArrayList<>();
 
-    static{
+    static {
         properties = ResourceBundle.getBundle("mebatis");
         sqlMapper = ResourceBundle.getBundle("sql");
     }
@@ -47,25 +50,40 @@ public class Configuration {
         //解析mapper
         String mapperPath = properties.getString("mapper.path");
         scanPackage(mapperPath);  //扫描mapper 所在的位置，并保存Mapper类对象
-        /*for (Class mapper : mapperList) {
-            parseClass(mapper);
-        }*/
+
+        //解析插件
+        String pluginValue = properties.getString("plugin.path");
+        String[] plugins = pluginValue.split(",");
+        if (null != plugins) {
+            for (String pluginPath : plugins) {
+                Interceptor interceptor = null;
+                try {
+                    interceptor = (org.rockyJie.v2.plugin.Interceptor) Class.forName(pluginPath).newInstance();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                interceptorChain.pluginAll(interceptor);
+            }
+        }
     }
 
     private void parseClass(Class mapper) {
 
     }
 
-    public Executor newExcutor(){
-        Executor executor = null;
-        return new SimpleExecutor();
+    public Executor newExcutor() {
+        Executor executor = new SimpleExecutor();
+        if(interceptorChain.hasPlugin()){
+           return (Executor) interceptorChain.pluginAll(executor);
+        }
+        return executor;
     }
 
-    public boolean hasStatement(String statementId){
+    public boolean hasStatement(String statementId) {
         return mappedStatement.containsKey(statementId);
     }
 
-    public String getMappedStatement(String statementId){
+    public String getMappedStatement(String statementId) {
         return mappedStatement.get(statementId);
     }
 
@@ -76,7 +94,7 @@ public class Configuration {
         String mainPath = classPath + mapperPath;
         System.out.println("mainPath:" + mainPath);
         doPath(new File(mainPath));
-        for (String className: classFilePath) {
+        for (String className : classFilePath) {
             className = className.replace(
                     classPath.replace("/", "\\").replaceFirst("\\\\", ""),
                     "").replace("\\", ".").replace(".class", "");
@@ -87,7 +105,7 @@ public class Configuration {
             } catch (ClassNotFoundException e) {
                 e.printStackTrace();
             }
-            if(clazz.isInterface()){
+            if (clazz.isInterface()) {
                 mapperList.add(clazz);
             }
         }
@@ -112,19 +130,19 @@ public class Configuration {
         return (T) MAPPER_REGISTRY.getMapper(sqlSession, clazz);
     }
 
-    public static String getJDBCDriver(){
+    public static String getJDBCDriver() {
         return properties.getString("jdbc.driver");
     }
 
-    public static String getDBUser(){
+    public static String getDBUser() {
         return properties.getString("jdbc.user");
     }
 
-    public static String getDBURL(){
+    public static String getDBURL() {
         return properties.getString("jdbc.url");
     }
 
-    public static String getDBPassWord(){
+    public static String getDBPassWord() {
         return properties.getString("jdbc.password");
     }
 }
